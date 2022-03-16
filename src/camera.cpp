@@ -1,0 +1,45 @@
+#include "mycamera.h"
+
+#include <Eigen/LU>
+
+namespace simple_pt
+{
+Camera::Camera(float fovy, const Eigen::Vector3f& eye, const Eigen::Vector3f& lookat, const Eigen::Vector3f& up, size_t p_width, size_t p_height, float z_near, float z_far) :
+    width(p_width),
+    height(p_height),
+    origin(eye)
+    {
+        //todo: check pers matrix
+        Eigen::Matrix4f view, pers_dir;
+        Eigen::Vector3f forward = (lookat - eye).normalized();
+        Eigen::Vector3f side = -forward.cross(up).normalized();
+        Eigen::Vector3f cam_up = forward.cross(side);
+        view << forward.x(), side.x(), cam_up.x(), 0.0f,
+            forward.y(), side.y(), cam_up.y(), 0.0f,
+            forward.z(), side.z(), cam_up.z(), 0.0f,
+            0.0f, 0.0f, 0.0f, 1.0f;
+        float aspect_ratio = (float)width / height;
+        float inv_tan = 1.0f / std::tan(fovy / 2.0f);
+        pers_dir << inv_tan, 0.0f, 0.0f, 0.0f,
+            0.0f, aspect_ratio * inv_tan, 0.0f, 0.0f,
+            0.0f, 0.0f, z_far / (z_far - z_near), -z_far*z_near / (z_far - z_near),
+            0.0f, 0.0f, 1.0f, 0.0f;
+        Eigen::Matrix4f inv = pers_dir.inverse();
+        this->pers = view * inv;
+    }
+
+
+Ray Camera::generateRay(size_t x, size_t y) const {
+    // todo: test this function
+    float x_i = x / (float) width, y_i = y / (float) height;
+    x_i = x_i * 2.0f - 1.0f;
+    y_i = y_i * 2.0f - 1.0f;
+    Eigen::Vector4f dir(x_i, y_i, 1.0f, 1.0f);
+    dir = pers * dir;
+    dir /= dir[3];
+    Eigen::Vector3f dir_h(dir[0], dir[1], dir[2]);
+    dir_h -= origin;
+    return Ray(origin, dir_h.normalized());
+}
+} // namespace simple_pt
+

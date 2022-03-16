@@ -3,6 +3,7 @@ cmake_minimum_required(VERSION 3.16)
 project(subdivision
     LANGUAGES CXX
 )
+set(CMAKE_CXX_STANDARD 17)
 
 include(./cmake/CPM.cmake)
 
@@ -13,6 +14,6 @@ CPMAddPackage("gh:tinyobjloader/tinyobjloader@2.0.0rc9")
 
 # project
 # -- excutable --
-add_executable(pt src/main.cpp)
+add_executable(pt src/camera.cpp src/light.cpp  src/scene.cpp src/shape.cpp src/helper.cpp src/main.cpp src/material.cpp src/integrator.cpp)
 target_include_directories(pt PUBLIC include)
-target_link_libraries(pt igl::opengl igl::opengl_glfw igl::opengl_glfw_imgui igl fire-hpp tinyobjloader)
+target_link_libraries(pt igl::core igl::xml fire-hpp tinyobjloader)
