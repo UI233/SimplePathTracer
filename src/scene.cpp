@@ -20,7 +20,17 @@ void Scene::loadLight(const XMLDocument& doc) {
         // todo: insert a light to the list
         auto iter = name_index.find(name);
         if (iter != name_index.end())
-            m_lights.push_back(std::make_shared<MeshLight>(Mesh(iter->second, nullptr), radiance));
+            m_lights.push_back(std::make_shared<MeshLight>(
+                    Mesh(iter->second, 
+                        nullptr,
+                        m_attrib,
+                        m_materials[iter->second],
+                        m_shapes[0],
+                        m_material_group_faces[iter->second]
+                        ), 
+                    radiance
+                )
+            );
     }
 }
 
@@ -34,14 +44,14 @@ void Scene::loadScene(const std::string& scene_path, const std::string& material
     m_shapes = reader.GetShapes();
     m_attrib = reader.GetAttrib();
     // construct the tree in aabb tree
-    Eigen::MatrixXd V(m_attrib.vertices.size() / 3, 3);
-    Eigen::MatrixXi F(m_shapes[0].mesh.num_face_vertices.size(), 3);
+    V.resize(m_attrib.vertices.size() / 3, 3);
+    F.resize(m_shapes[0].mesh.num_face_vertices.size(), 3);
     int j = 0;
     m_material_group_faces.resize(m_materials.size());
     for (auto& shape: m_shapes) {
         size_t offset = 0;
         for (auto v_num: shape.mesh.num_face_vertices) {
-            for (size_t i = 0; i < v_num; ++i)
+            for (size_t i = 0; i < v_num; ++i) 
                 F(j, i) = shape.mesh.indices[offset + i].vertex_index;
             m_material_group_faces[shape.mesh.material_ids[j]].push_back(j);
             ++j;
@@ -58,7 +68,15 @@ void Scene::loadScene(const std::string& scene_path, const std::string& material
     for (int i = 0; i < m_materials.size(); ++i) {
         // todo: support multiple types of materials
         Eigen::Vector3f ks(m_materials[i].diffuse);
-        m_objects.push_back(std::make_shared<Mesh>(i, std::make_shared<Lambert>(ks)));
+        m_objects.push_back(std::make_shared<Mesh>(
+                i, 
+                std::make_shared<Lambert>(ks),
+                m_attrib,
+                m_materials[i],
+                m_shapes[0],
+                m_material_group_faces[i]
+            )
+        );
     }
     // m_objects.push_back(std::make_shared)
 }
@@ -69,6 +87,17 @@ void Scene::load(const std::string& scene_model_path, const std::string& scene_c
     // loadCamera(doc);
     loadScene(scene_model_path, material_path);
     loadLight(doc);
+}
+
+HitInfo Scene::intersect(const Ray& r) const {
+    igl::Hit hit;
+    Eigen::Vector3d o(r.m_o[0], r.m_o[1], r.m_o[2]), t(r.m_t[0], r.m_t[1], r.m_t[2]);
+    // todo: return more information
+    if (m_tree.intersect_ray(V, F, o, t, hit)) {
+        auto pos = r.at(hit.t);
+        return {pos};
+    }
+    return {Eigen::Vector3f(0.0f, 0.0f, 0.0f)};
 }
 
 }

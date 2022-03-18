@@ -4,6 +4,7 @@
 #include <string>
 #include <optional>
 #include <memory>
+#include <variant>
 
 #include <Eigen/Core>
 
@@ -24,14 +25,14 @@ namespace simple_pt
 using tinyxml2::XMLDocument;
 
 struct HitInfo {
-
+    Eigen::Vector3f pos;
 };
 
 class Scene {
 public:
     void load(const std::string& scene_model_path, const std::string& material_path, const std::string& scene_config_path);
 
-//    HitInfo intersect(const Ray& r) const;
+    HitInfo intersect(const Ray& r) const;
 
     // todo: fill the lighting transimission info
     std::optional<TransmittedInfo> pickLight() const {
@@ -44,11 +45,12 @@ private:
     std::vector<tinyobj::material_t> m_materials;
     std::vector<tinyobj::shape_t> m_shapes;
     // store customed information
+    Eigen::MatrixXd V;
+    Eigen::MatrixXi F;
     // Camera m_cam;
     std::vector<std::vector<size_t>> m_material_group_faces;
     std::vector<std::shared_ptr<Light>> m_lights;
     std::vector<std::shared_ptr<Shape>> m_objects;
-//    void loadCamera(const XMLDocument& doc);
     void loadLight(const XMLDocument& doc);
     void loadScene(const std::string& scene_path, const std::string& material_path);
 };

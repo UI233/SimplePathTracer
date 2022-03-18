@@ -12,14 +12,15 @@ Camera::Camera(float fovy, const Eigen::Vector3f& eye, const Eigen::Vector3f& lo
         //todo: check pers matrix
         Eigen::Matrix4f view, pers_dir;
         Eigen::Vector3f forward = (lookat - eye).normalized();
-        Eigen::Vector3f side = -forward.cross(up).normalized();
-        Eigen::Vector3f cam_up = forward.cross(side);
-        view << forward.x(), side.x(), cam_up.x(), 0.0f,
-            forward.y(), side.y(), cam_up.y(), 0.0f,
-            forward.z(), side.z(), cam_up.z(), 0.0f,
+        Eigen::Vector3f side = forward.cross(up).normalized();
+        // Eigen::Vector3f cam_up = forward.cross(side);
+        view << side.x(), up.x(), forward.x(), 0.0f,
+            side.y(), up.y(), forward.y(), 0.0f,
+            side.z(), up.z(), forward.z(), 0.0f,
             0.0f, 0.0f, 0.0f, 1.0f;
         float aspect_ratio = (float)width / height;
-        float inv_tan = 1.0f / std::tan(fovy / 2.0f);
+        fovy = fovy / 180.0 * M_PI;
+        float inv_tan = 1.0f / std::tan(fovy * 0.5);
         pers_dir << inv_tan, 0.0f, 0.0f, 0.0f,
             0.0f, aspect_ratio * inv_tan, 0.0f, 0.0f,
             0.0f, 0.0f, z_far / (z_far - z_near), -z_far*z_near / (z_far - z_near),

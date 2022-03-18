@@ -15,5 +15,5 @@ CPMAddPackage("gh:tinyobjloader/tinyobjloader@2.0.0rc9")
 # project
 # -- excutable --
 add_executable(pt src/camera.cpp src/light.cpp  src/scene.cpp src/shape.cpp src/helper.cpp src/main.cpp src/material.cpp src/integrator.cpp)
-target_include_directories(pt PUBLIC include)
+target_include_directories(pt PUBLIC include stb)
 target_link_libraries(pt igl::core igl::xml fire-hpp tinyobjloader)

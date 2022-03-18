@@ -7,6 +7,8 @@ int main(int argc, char* argv[]) {
     if (argc >= 3) {
         scene.load(argv[1], argv[2], argv[3]);
         integrator.loadCamera(argv[2]);
+        integrator.render(scene);
+        integrator.draw();
     }
     return 0;
 }

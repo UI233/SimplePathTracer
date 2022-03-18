@@ -9,5 +9,9 @@ public:
     m_o(o),
     m_t(t) {}
     Eigen::Vector3f m_o, m_t;
+
+    inline Eigen::Vector3f at(float t) const {
+        return m_o + t * m_t;
+    }
 };
 };

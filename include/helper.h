@@ -10,4 +10,14 @@ Eigen::Vector3f getUniformHemiSphereSample(const Eigen::Vector3f& normal);
 Eigen::Vector3f getUnifromTriangleSample();
 
 Eigen::Vector3f str2vector3(std::string s);
+
+template<typename T>
+T clamp(T v, T l, T r) {
+    if (v <= l)
+        return l;
+    else if (v >= r)
+        return r;
+    else
+        return v;
+}
 }
