@@ -11,6 +11,8 @@ Eigen::Vector3f getUnifromTriangleSample();
 
 Eigen::Vector3f str2vector3(std::string s);
 
+Eigen::Vector3f getCosineWeightHemiSphereSample(const Eigen::Vector3f& normal);
+
 template<typename T>
 T clamp(T v, T l, T r) {
     if (v <= l)

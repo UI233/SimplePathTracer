@@ -19,18 +19,14 @@ void Scene::loadLight(const XMLDocument& doc) {
         Eigen::Vector3f radiance = str2vector3(light->Attribute("radiance"));
         // todo: insert a light to the list
         auto iter = name_index.find(name);
-        if (iter != name_index.end())
+        if (iter != name_index.end()) {
+            m_light_name.insert(std::make_pair(name, m_lights.size()));
             m_lights.push_back(std::make_shared<MeshLight>(
-                    Mesh(iter->second, 
-                        nullptr,
-                        m_attrib,
-                        m_materials[iter->second],
-                        m_shapes[0],
-                        m_material_group_faces[iter->second]
-                        ), 
+                    m_objects[iter->second], 
                     radiance
                 )
             );
+        }
     }
 }
 
@@ -93,11 +89,23 @@ HitInfo Scene::intersect(const Ray& r) const {
     igl::Hit hit;
     Eigen::Vector3d o(r.m_o[0], r.m_o[1], r.m_o[2]), t(r.m_t[0], r.m_t[1], r.m_t[2]);
     // todo: return more information
-    if (m_tree.intersect_ray(V, F, o, t, hit)) {
-        auto pos = r.at(hit.t);
-        return {pos};
+    if (m_tree.intersect_ray(V, F, o + 1e-6 * t, t, hit)) {
+        size_t idx = m_shapes[0].mesh.material_ids[hit.id];
+        std::string name = m_materials[idx].name;
+        if (m_light_name.count(name))
+            return {
+                hit,
+                m_objects[idx],
+                m_lights[m_light_name.find(name)->second]
+            };
+        else
+            return {
+                hit,
+                m_objects[idx],
+                nullptr
+            };
     }
-    return {Eigen::Vector3f(0.0f, 0.0f, 0.0f)};
+    return {hit, nullptr, nullptr};
 }
 
 }

@@ -1,5 +1,6 @@
 #pragma once
 
+#include <map>
 #include <vector>
 #include <string>
 #include <optional>
@@ -25,19 +26,20 @@ namespace simple_pt
 using tinyxml2::XMLDocument;
 
 struct HitInfo {
-    Eigen::Vector3f pos;
+    igl::Hit hit;
+    std::shared_ptr<Shape> shape;
+    std::shared_ptr<Light> light;
 };
+
 
 class Scene {
 public:
+    Scene() = default;
+    Scene(const Scene&) = delete;
     void load(const std::string& scene_model_path, const std::string& material_path, const std::string& scene_config_path);
 
     HitInfo intersect(const Ray& r) const;
-
-    // todo: fill the lighting transimission info
-    std::optional<TransmittedInfo> pickLight() const {
-        return std::optional<TransmittedInfo>();
-    }
+    inline std::vector<std::shared_ptr<Light>> getAllLights() const { return m_lights; }
 private:
     // meta information
     igl::AABB<Eigen::MatrixXd, 3> m_tree;
@@ -51,6 +53,8 @@ private:
     std::vector<std::vector<size_t>> m_material_group_faces;
     std::vector<std::shared_ptr<Light>> m_lights;
     std::vector<std::shared_ptr<Shape>> m_objects;
+    // light name to idx
+    std::map<std::string, size_t> m_light_name;
     void loadLight(const XMLDocument& doc);
     void loadScene(const std::string& scene_path, const std::string& material_path);
 };

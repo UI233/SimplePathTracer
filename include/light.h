@@ -8,19 +8,21 @@ namespace simple_pt{
 
 class Light {
 public:
-    virtual Eigen::Vector3f sampleLight() const = 0;
+    virtual TransmittedInfo sampleLight(const igl::Hit& hit, const Eigen::Vector3f& pos) const = 0;
+    virtual Eigen::Vector3f lightEmitted(const igl::Hit& hit, const Eigen::Vector3f& dir) const = 0;
     virtual ~Light() {}
 };
 
 class MeshLight : public Light {
 public:
-    Eigen::Vector3f sampleLight() const override;
-    MeshLight(const Mesh& mesh, const Eigen::Vector3f& radiance):
+    TransmittedInfo sampleLight(const igl::Hit& hit, const Eigen::Vector3f& pos) const override;
+    Eigen::Vector3f lightEmitted(const igl::Hit& hit, const Eigen::Vector3f& dir) const override;
+    MeshLight(std::shared_ptr<Shape> mesh, const Eigen::Vector3f& radiance):
         m_mesh(mesh),
         m_radiance(radiance) 
         {}
 private:
-    Mesh m_mesh;
+    std::shared_ptr<Shape> m_mesh;
     Eigen::Vector3f m_radiance;
 };
 

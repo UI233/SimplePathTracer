@@ -1,5 +1,7 @@
 #include "helper.h"
 
+#include <Eigen/Eigen>
+
 #include <random>
 #include <cmath>
 #include <regex>
@@ -19,6 +21,16 @@ Eigen::Vector3f getUniformHemiSphereSample(const Eigen::Vector3f& normal) {
     if (dot < 0.0f)
         sample -= 2.0f * dot * normal;
     return sample;
+}
+
+Eigen::Vector3f getCosineWeightHemiSphereSample(const Eigen::Vector3f& normal) {
+    static std::random_device rng;
+    static std::uniform_real_distribution<float> dist(0.0f, 1.0f);
+    Eigen::Vector3f x_v = normal.cross(Eigen::Vector3f(0.1, 0.4, 0.5)).normalized(), y_v = normal.cross(x_v);
+    float r = sqrtf(dist(rng)), theta = M_PI * 2.0f * dist(rng);
+    float x = r * cos(theta), y = r * sin(theta);
+    float z = (std::max(0.0f, 1.0f - x * x - y * y));
+    return x * x_v + y * y_v + z * normal;
 }
 
 Eigen::Vector3f str2vector3(std::string s) {
