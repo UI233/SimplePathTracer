@@ -63,6 +63,18 @@ Eigen::Vector3f Mesh::normal(const igl::Hit& hit) const {
     return (hit.u * normals[1] + hit.v * normals[2] + (1.0f - hit.u - hit.v) * normals[0]).normalized();
 }
 
+Eigen::Vector3f Mesh::pos(const igl::Hit& hit) const {
+    std::array<size_t, 3> v_indices{
+        m_shape.mesh.indices[hit.id * 3].vertex_index,
+        m_shape.mesh.indices[hit.id * 3 + 1].vertex_index,
+        m_shape.mesh.indices[hit.id * 3 + 2].vertex_index
+    };
+    auto v = indices2triangle(v_indices, m_attrib.vertices);
+    return (hit.u * v[1] + hit.v * v[2] + (1.0f - hit.u - hit.v) * v[0]).normalized();
+
+}
+
+
 TransmittedInfo Mesh::sampleF(const igl::Hit& hit, const Ray& ray) const {
     // todo: add normal computation
     Eigen::Vector3f normal_v = normal(hit);

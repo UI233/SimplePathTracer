@@ -30,4 +30,6 @@ T clamp(T v, T l, T r) {
 }
 
 bool isnan(Eigen::Vector3f &v);
+
+float powerHeuristic(float pdf_a, int num_a, float pdf_b, int num_b);
 }

@@ -91,7 +91,7 @@ Eigen::Vector3f Integrator::pathTracing(Ray ray, const Scene &scene) const {
         // sample 
         if (bounce == 0) {
             if (intersect.light) {
-                l += intersect.light->lightEmitted(intersect.hit, ray.m_t);
+                l += intersect.light->lightEmitted(intersect.hit, -ray.m_t);
                 break;
             }
             assert(!isnan(l));
@@ -128,16 +128,32 @@ Eigen::Vector3f Integrator::uniformSampleAllLights(const Scene &scene, const Hit
     igl::Hit hit = intersect.hit;
     Eigen::Vector3f pos = ray.at(hit.t);
     for (size_t s; s < m_l_samples; ++s)
-    for (auto light : scene.getAllLights()) {
+    for (auto& light : scene.getAllLights()) {
         // todo check sampling pos
+        // sample on light source
         auto [wi, light_spectrum, light_pdf] = light->sampleLight(hit, pos); 
         // test for occulution
         auto visibility_hit = scene.intersect(wi).hit;
+        auto normal = intersect.shape->normal(hit);
         if ((wi.at(visibility_hit.t) - pos).norm() < 1e-3 && light_spectrum.norm() > 1e-5 && light_pdf > 1e-7) {
-            auto normal = intersect.shape->normal(hit);
             auto f = intersect.shape->getMaterial()->f(-wi.m_t, -ray.m_t, normal, std::make_shared<igl::Hit>(hit));
-            // float pdf = intersect.shape->getMaterial()->pdf(-wi.m_t, -ray.m_t, normal);
-            l += light_spectrum.cwiseProduct(f) / light_pdf * fabs(wi.m_t.dot(normal));
+            float pdf = intersect.shape->getMaterial()->pdf(-wi.m_t, -ray.m_t, normal);
+            l += light_spectrum.cwiseProduct(f) / light_pdf * fabs(wi.m_t.dot(normal)) * powerHeuristic(light_pdf, 1, pdf, 1);
+        }
+        // sample bsdf
+        auto [wi_f, f, pdf] = intersect.shape->sampleF(intersect.hit, ray);
+        f *= fabs(wi_f.m_t.dot(normal));
+        if (pdf > 1e-5) {
+            wi_f.m_o = pos;
+            auto light_test = scene.intersect(wi_f);
+            if (light_test.light == light) {
+                // hit on current light
+                float light_pdf = light->pdfLi(-wi_f.m_t, light_test.hit, pos);
+                if (light_pdf > 1e-5) {
+                    Eigen::Vector3f le = light->lightEmitted(light_test.hit, -wi_f.m_t);
+                    l += f.cwiseProduct(le) * powerHeuristic(pdf, 1, light_pdf, 1) / pdf;
+                }
+            }
         }
     }
     assert(!isnan(l));

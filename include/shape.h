@@ -24,7 +24,9 @@ public:
     virtual SampleInfo uniformSampling() const = 0;
     virtual TransmittedInfo sampleF(const igl::Hit& hit, const Ray& ray) const = 0;
     virtual Eigen::Vector3f normal(const igl::Hit& hit) const = 0;
+    virtual Eigen::Vector3f pos(const igl::Hit& hit) const = 0;
     virtual std::shared_ptr<Material> getMaterial() const = 0;
+    virtual float pdf() const = 0;
     virtual ~Shape() {}
 };
 
@@ -35,8 +37,10 @@ public:
     // override for base class
     TransmittedInfo sampleF(const igl::Hit& hit, const Ray& ray) const override;
     Eigen::Vector3f normal(const igl::Hit& hit) const override;
+    Eigen::Vector3f pos(const igl::Hit& hit) const override;
     inline size_t getId() const {return m_group_id;}
     inline std::shared_ptr<Material> getMaterial() const override {return m_material;};
+    float pdf() const override {return 1.0f / m_area;}
 private:
     // todo: add texture
     // Eigen::Vector3f getTexture(const igl::Hit& hit) const;

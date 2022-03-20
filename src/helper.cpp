@@ -62,4 +62,9 @@ triangle_t indices2triangle(const std::array<size_t, 3>& indices, const std::vec
 bool isnan(Eigen::Vector3f &v) {
     return std::isnan(v[0]) || std::isnan(v[1]) || std::isnan(v[2]);
 }
+
+float powerHeuristic(float pdf_a, int num_a, float pdf_b, int num_b) {
+    float fa = pdf_a * num_a, fb = pdf_b * num_b;
+    return (fa * fa) / (fa * fa + fb * fb);
+}
 } // namespace simple_pt
