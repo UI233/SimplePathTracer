@@ -37,9 +37,7 @@ public:
     Eigen::Vector3f normal(const igl::Hit& hit) const override;
     inline size_t getId() const {return m_group_id;}
     inline std::shared_ptr<Material> getMaterial() const override {return m_material;};
-    using triangle_t = std::array<Eigen::Vector3f, 3>;
 private:
-    triangle_t indices2triangle(const std::array<size_t, 3>&, const std::vector<float>& ) const;
     // todo: add texture
     // Eigen::Vector3f getTexture(const igl::Hit& hit) const;
 private:
@@ -53,7 +51,7 @@ private:
     float m_area;
     std::vector<float> m_area_accum;
     // for generating random samples
-    static std::random_device rng;
+    static std::default_random_engine rng;
     static std::uniform_real_distribution<float> distri;
 };
 };

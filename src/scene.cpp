@@ -66,7 +66,7 @@ void Scene::loadScene(const std::string& scene_path, const std::string& material
         Eigen::Vector3f ks(m_materials[i].diffuse);
         m_objects.push_back(std::make_shared<Mesh>(
                 i, 
-                std::make_shared<Lambert>(ks),
+                std::make_shared<Phong>(m_materials[i], m_shapes[0], m_attrib, material_path),
                 m_attrib,
                 m_materials[i],
                 m_shapes[0],
@@ -89,7 +89,7 @@ HitInfo Scene::intersect(const Ray& r) const {
     igl::Hit hit;
     Eigen::Vector3d o(r.m_o[0], r.m_o[1], r.m_o[2]), t(r.m_t[0], r.m_t[1], r.m_t[2]);
     // todo: return more information
-    if (m_tree.intersect_ray(V, F, o + 1e-6 * t, t, hit)) {
+    if (m_tree.intersect_ray(V, F, o + 1e-3 * t, t, hit)) {
         size_t idx = m_shapes[0].mesh.material_ids[hit.id];
         std::string name = m_materials[idx].name;
         if (m_light_name.count(name))

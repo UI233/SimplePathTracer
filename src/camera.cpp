@@ -30,7 +30,7 @@ Camera::Camera(float fovy, const Eigen::Vector3f& eye, const Eigen::Vector3f& lo
     }
 
 
-Ray Camera::generateRay(size_t x, size_t y) const {
+Ray Camera::generateRay(float x, float y) const {
     // todo: test this function
     float x_i = x / (float) width, y_i = y / (float) height;
     x_i = x_i * 2.0f - 1.0f;

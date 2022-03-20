@@ -15,7 +15,7 @@
 
 namespace simple_pt
 {
-std::random_device Integrator::m_rng;
+std::default_random_engine Integrator::m_rng;
 std::uniform_real_distribution<float> Integrator::m_distri(0.0f, 1.0f);
 
 void Integrator::loadCamera(const std::string& config_file) {
@@ -46,6 +46,7 @@ float max_dis = 0.0f;
 void Integrator::render(const Scene &scene) {
     for (int i = 0; i < m_cam.h(); ++i)
         for (int j = 0; j < m_cam.w(); ++j) {
+            // float offset_x = m_distri(m_rng), offset_y = m_distri(m_rng);
             auto ray = m_cam.generateRay(j, i);
             #pragma omp parallel for
             for (int s = 0; s < m_num_samples; ++s)
@@ -54,12 +55,20 @@ void Integrator::render(const Scene &scene) {
 }
 
 void Integrator::draw() {
+    auto tone_mapping_gamma = [](float c) {
+        //todo: fix this
+        return pow(1.0f - exp(-1.0f * c), 1.0 / 2.2);
+    };
     std::vector<unsigned char> data(m_cam.w() * m_cam.h() * 3);
     for (int i = 0; i < m_cam.h(); ++i)
         for (int j = 0; j < m_cam.w(); ++j)
-            for (int c = 0; c < 3; ++c)
+            for (int c = 0; c < 3; ++c) {
+                if (std::isnan(m_frame[m_cam.h() - 1 - i][j][c]))
+                    throw "nan";
                 // todo: simply draw out the image
-                data[3 * (i * m_cam.w() + j) + c] = static_cast<unsigned char>(clamp<float>(m_frame[m_cam.h() - 1 - i][j][c] / m_num_samples, 0.0f, 1.0f) * 255u);
+                float mapped = clamp<float>(tone_mapping_gamma(m_frame[m_cam.h() - 1 - i][j][c] / m_num_samples), 0.0f, 1.0f);
+                data[3 * (i * m_cam.w() + j) + c] = clamp<size_t>(static_cast<size_t>(mapped * 255u), 0u, 255u);
+            }
     stbi_write_bmp("depth.bmp", m_cam.w(), m_cam.h(), 3, static_cast<void*>(data.data()));
 }
 
@@ -75,7 +84,8 @@ Eigen::Vector3f Integrator::pathTracing(Ray ray, const Scene &scene) const {
     // 
     Eigen::Vector3f l(0.0f, 0.0f, 0.0f);
     Eigen::Vector3f beta(1.0f, 1.0f, 1.0f);
-    for (size_t bounce = 0; bounce <= m_max_bounces; ++bounce) {
+    size_t bounce = 0;
+    for (bounce = 0; bounce <= m_max_bounces; ++bounce) {
         auto intersect = scene.intersect(ray);
         auto pos = ray.at(intersect.hit.t);
         // sample 
@@ -84,14 +94,21 @@ Eigen::Vector3f Integrator::pathTracing(Ray ray, const Scene &scene) const {
                 l += intersect.light->lightEmitted(intersect.hit, ray.m_t);
                 break;
             }
+            assert(!isnan(l));
         }
+        else if (intersect.light)
+            break;
         if (!intersect.shape)
             break;
         // sample light
         l += beta.cwiseProduct(uniformSampleAllLights(scene, intersect, ray));
+        assert(!isnan(l));
         // sample the new direction
         Eigen::Vector3f normal = intersect.shape->normal(intersect.hit);
+        // for debug
         auto transimitted_info = intersect.shape->sampleF(intersect.hit, ray);
+        if (transimitted_info.possibility < 1e-7)
+            break;
         beta = beta.cwiseProduct(transimitted_info.spectrum * fabs(normal.dot(transimitted_info.ray.m_t)) / transimitted_info.possibility);
         // randomlly terminate the process
         if (bounce >= m_least_bounces) {
@@ -100,6 +117,7 @@ Eigen::Vector3f Integrator::pathTracing(Ray ray, const Scene &scene) const {
                 break;
             beta /= 1 - q;
         }
+        assert(!isnan(beta));
         ray = Ray(pos, transimitted_info.ray.m_t);
     }
     return l;
@@ -107,21 +125,23 @@ Eigen::Vector3f Integrator::pathTracing(Ray ray, const Scene &scene) const {
 
 Eigen::Vector3f Integrator::uniformSampleAllLights(const Scene &scene, const HitInfo& intersect, const Ray& ray) const {
     Eigen::Vector3f l(0.0f, 0.0f, 0.0f);
-    auto& hit = intersect.hit;
+    igl::Hit hit = intersect.hit;
     Eigen::Vector3f pos = ray.at(hit.t);
+    for (size_t s; s < m_l_samples; ++s)
     for (auto light : scene.getAllLights()) {
-        Eigen::Vector3f ld(0.0f, 0.0f, 0.0f);
+        // todo check sampling pos
         auto [wi, light_spectrum, light_pdf] = light->sampleLight(hit, pos); 
         // test for occulution
         auto visibility_hit = scene.intersect(wi).hit;
-        if ((wi.at(visibility_hit.t) - pos).norm() < 1e-4 && light_spectrum.norm() > 1e-3) {
+        if ((wi.at(visibility_hit.t) - pos).norm() < 1e-3 && light_spectrum.norm() > 1e-5 && light_pdf > 1e-7) {
             auto normal = intersect.shape->normal(hit);
-            auto f = intersect.shape->getMaterial()->f(-wi.m_t, -ray.m_t, normal);
+            auto f = intersect.shape->getMaterial()->f(-wi.m_t, -ray.m_t, normal, std::make_shared<igl::Hit>(hit));
             // float pdf = intersect.shape->getMaterial()->pdf(-wi.m_t, -ray.m_t, normal);
             l += light_spectrum.cwiseProduct(f) / light_pdf * fabs(wi.m_t.dot(normal));
         }
     }
-    return l;
+    assert(!isnan(l));
+    return l / static_cast<float>(m_l_samples);
 }
 } // namespace simple_pt
 
