@@ -9,6 +9,7 @@
 #include <memory>
 #include <variant>
 #include <string>
+#include <random>
 
 #include "utility.h"
 
@@ -58,11 +59,14 @@ public:
     Eigen::Vector3f f(const Eigen::Vector3f& wi, const Eigen::Vector3f& wo, const Eigen::Vector3f& normal, const std::shared_ptr<igl::Hit>& hit = nullptr) const override;
     float pdf(const Eigen::Vector3f& wi, const Eigen::Vector3f& wo, const Eigen::Vector3f& normal, const std::shared_ptr<igl::Hit>& hit = nullptr) const override;
 private:
+    Eigen::Vector3f getKd(const std::shared_ptr<igl::Hit>& hit) const;
     std::variant<Eigen::Vector3f, Texture> m_kd_map;
     std::variant<Eigen::Vector3f, Texture> m_ks_map;
-    float ns, nd;
+    float m_ns, m_nd;
     const tinyobj::attrib_t& m_attrib;
     const tinyobj::shape_t&  m_shape;
+    static std::uniform_real_distribution<float> m_distri;
+    static std::default_random_engine m_rng;
 };
 
 // class Phong : public Material{

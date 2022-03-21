@@ -23,7 +23,7 @@ int fireMain(std::string scene_model_path=fire::arg({0, "scene_path"}),
     scene.load(scene_model_path, scene_config_path, mat_path);
     integrator.loadCamera(scene_config_path);
     integrator.render(scene);
-    integrator.draw();
+    integrator.draw(); 
     return 0;
 }
 

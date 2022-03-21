@@ -1,4 +1,5 @@
 #include <algorithm>
+#include <iostream>
 
 #include "helper.h"
 #include "shape.h"
@@ -26,6 +27,7 @@ Mesh::Mesh(size_t group_id, std::shared_ptr<Material> material, const tinyobj::a
         m_area_accum.push_back(v_diff0.cross(v_diff1).norm() * 0.5f);
     }
     m_area = std::accumulate(m_area_accum.begin(), m_area_accum.end(), 0.0f);
+    std::cout << m_area << std::endl;
     for (size_t i = 1; i < m_area_accum.size(); ++i)
         m_area_accum[i] += m_area_accum[i - 1];
 }

@@ -8,6 +8,9 @@
 #include "helper.h"
 
 namespace simple_pt {
+std::uniform_real_distribution<float> Phong::m_distri(0.0f, 1.0f);
+std::default_random_engine Phong::m_rng;
+
 Texture::Texture(const std::string& filename) {
     data = stbi_load(filename.c_str(), &m_width, &m_height, &m_channels, 3);
 }
@@ -36,7 +39,7 @@ Eigen::Vector3f Texture::at(float x, float y) const {
     Eigen::Vector3f fr1 = ((x1_float - x) * f01 + (x - x0_float) * f11) / (x1_float - x0_float);
     Eigen::Vector3f fr0 = ((x1_float - x) * f00 + (x - x0_float) * f10) / (x1_float - x0_float);
     Eigen::Vector3f res =((y1_float - y) * fr1 + (y - y0_float) * fr0) / (y1_float - y0_float);
-    assert(!isnan(res));
+    assert(!isnan(res, "Ds"));
     return res;
 }
 
@@ -119,18 +122,11 @@ Phong::Phong(const tinyobj::material_t& material, const tinyobj::shape_t& shape,
         m_ks_map.emplace<Texture>(material.specular_texname);
     else
         m_ks_map.emplace<Eigen::Vector3f>(material.specular);
-    nd = material.shininess;
-    ns = material.ior;
+    m_ns = material.shininess;
+    m_nd = material.ior;
 }
 
-
-TransmittedInfo Phong::sample(const Eigen::Vector3f& wo, const Eigen::Vector3f& normal, const std::shared_ptr<igl::Hit>& hit) const {
-    Eigen::Vector3f wi = getCosineWeightHemiSphereSample(normal);
-    // float pdf = 0.5f * M_1_PI;
-    return {Ray(Eigen::Vector3f(0.0f, 0.0f, 0.0f), wi), f(wi, wo, normal, hit), pdf(wi, wo, normal)};
-}
-
-Eigen::Vector3f Phong::f(const Eigen::Vector3f& wi, const Eigen::Vector3f& wo, const Eigen::Vector3f& normal, const std::shared_ptr<igl::Hit>& hit) const {
+Eigen::Vector3f Phong::getKd(const std::shared_ptr<igl::Hit>& hit) const {
     Eigen::Vector3f kd;
     if (m_kd_map.index() == 0)
         kd = std::get<Eigen::Vector3f>(m_kd_map);
@@ -152,16 +148,68 @@ Eigen::Vector3f Phong::f(const Eigen::Vector3f& wi, const Eigen::Vector3f& wo, c
         };
         Eigen::Vector2f uv = hit->u * uvs[1] + hit->v * uvs[2] + (1.0f - hit->u - hit->v) * uvs[0];
         kd = tex.at(uv[0], uv[1]);
-        assert(!isnan(kd));
     }
-    return kd * M_1_PI;
+    return kd;
 }
 
-float Phong::pdf(const Eigen::Vector3f& wi, const Eigen::Vector3f& wo, const Eigen::Vector3f& normal, const std::shared_ptr<igl::Hit>&) const {
-    if (normal.dot(wo) * normal.dot(wi) >= 0.0f)
-        return fabs(wi.dot(normal)) * M_1_PI;
+TransmittedInfo Phong::sample(const Eigen::Vector3f& wo, const Eigen::Vector3f& normal, const std::shared_ptr<igl::Hit>& hit) const {
+    float ks_intensity = rgb2intensity(std::get<Eigen::Vector3f>(m_ks_map));
+    float kd_intensity = rgb2intensity(getKd(hit));
+    float total_inv = 1.0 / (ks_intensity + kd_intensity);
+    float kd_pdf = kd_intensity * total_inv;
+    Eigen::Vector3f wi;
+    if (m_distri(m_rng) <= kd_pdf || ks_intensity < 1e-5)
+    {
+        wi = getCosineWeightHemiSphereSample(normal);
+    }
+    else {
+        Eigen::Vector3f h_normal = normal.dot(wo) * normal;
+        Eigen::Vector3f wr = (h_normal - wo) + h_normal;
+        wi = getSpecularWeight(wr, m_ns);
+    }
+    return {Ray(Eigen::Vector3f(0.0f, 0.0f, 0.0f), wi), f(wi, wo, normal, hit), pdf(wi, wo, normal, hit)};
+}
+
+Eigen::Vector3f Phong::f(const Eigen::Vector3f& wi, const Eigen::Vector3f& wo, const Eigen::Vector3f& normal, const std::shared_ptr<igl::Hit>& hit) const {
+    Eigen::Vector3f kd = getKd(hit); 
+    Eigen::Vector3f ks;
+    if (normal.dot(wi) < 0.0f)
+        return Eigen::Vector3f(0.0f, 0.0f, 0.0f);
+    if (m_ks_map.index() == 0)
+        ks = std::get<Eigen::Vector3f>(m_ks_map);
+    if (ks.norm() > 1e-6) {
+        Eigen::Vector3f total = ks + kd;
+        if (total[0] >= 1.0f || total[1] >= 1.0f || total[2] >= 1.0f) {
+            ks = 0.5 * ks;
+            kd = 0.5 * kd;
+        }
+        Eigen::Vector3f h_normal = normal.dot(wi) * normal;
+        Eigen::Vector3f wr = (h_normal - wi) + h_normal;
+        float cosa = fabs(wo.dot(wr.normalized()));
+        // 
+        return kd * M_1_PI + ks * (m_ns + 2) / (2.0f * M_PI) * pow(cosa, m_ns);
+    }
     else
+        return kd * M_1_PI;
+}
+
+float Phong::pdf(const Eigen::Vector3f& wi, const Eigen::Vector3f& wo, const Eigen::Vector3f& normal, const std::shared_ptr<igl::Hit>& hit) const {
+    float ks_intensity = rgb2intensity(std::get<Eigen::Vector3f>(m_ks_map));
+    if (normal.dot(wo) * normal.dot(wi) < 0.0f)
         return 0.0f;
+    if  (ks_intensity > 1e-5) {
+        float kd_intensity = rgb2intensity(getKd(hit));
+        float total_inv = 1.0 / (ks_intensity + kd_intensity);
+        float kd_pdf = kd_intensity * total_inv, ks_pdf = ks_intensity * total_inv;
+        Eigen::Vector3f h_normal = normal.dot(wo) * normal;
+        Eigen::Vector3f wr = (h_normal - wo) + h_normal;
+
+        // if (normal.dot(wo) * normal.dot(wi) >= 0.0f) {
+        return kd_pdf * fabs(wi.dot(normal)) * M_1_PI + ks_pdf * pow(fabs(wr.dot(wi)), m_ns) * (m_ns + 1) * M_1_PI * 0.5f;
+        // }
+    }
+    return fabs(wi.dot(normal)) * M_1_PI ;
+    // return 0.5f * M_1_PI;
 } 
 }
 #undef STB_IMAGE_IMPLEMENTATION
