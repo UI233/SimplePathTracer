@@ -103,7 +103,7 @@ Eigen::Vector3f Integrator::pathTracing(Ray ray, const Scene &scene) const {
             break;
         // sample 
         //todo: check specular
-        if (bounce == 0 || is_specular) {
+        if (bounce == 0) {
             if (intersect.light) {
                 l += beta.cwiseProduct(intersect.light->lightEmitted(intersect.hit, -ray.m_t));
                 break;
@@ -115,14 +115,19 @@ Eigen::Vector3f Integrator::pathTracing(Ray ray, const Scene &scene) const {
         auto material_pt = intersect.shape->getMaterial();
         is_specular = material_pt ? (material_pt->getFlag() & BXDF_SPECULAR) : false;
         // sample light
-        l += beta.cwiseProduct(uniformSampleAllLights(scene, intersect, ray));
+        if (!is_specular)
+            l += beta.cwiseProduct(uniformSampleAllLights(scene, intersect, ray));
         // sample the new direction
         Eigen::Vector3f normal = intersect.shape->normal(intersect.hit);
         // for debug
         auto transimitted_info = intersect.shape->sampleF(intersect.hit, ray);
-        if (transimitted_info.possibility < 1e-5 || isnan(transimitted_info.spectrum, "spectrum nan"))
+        // if (transimitted_info.possibility < 1e-5 || isnan(transimitted_info.spectrum, "spectrum nan"))
+        //     break;
+        if (transimitted_info.possibility == 0.0f)
             break;
         beta = beta.cwiseProduct(transimitted_info.spectrum * fabs(normal.dot(transimitted_info.ray.m_t)) / transimitted_info.possibility);
+        if (isnan(beta, ""))
+            break;
         isnan(l, "beta_fail_nan");
         // randomlly terminate the process
         if (bounce >= m_least_bounces) {
@@ -153,21 +158,24 @@ Eigen::Vector3f Integrator::uniformSampleAllLights(const Scene &scene, const Hit
         auto [wi, light_spectrum, light_pdf] = light->sampleLight(hit, pos); 
         // wi.m_o += epst * wi.m_t;
         Ray test_ray(pos + epst * -wi.m_t, -wi.m_t);
-        auto visibility_hit = scene.intersect(test_ray);
-        if (visibility_hit.light == light && light_spectrum.norm() > peps && light_pdf > peps) {
-            auto new_pos = test_ray.at(visibility_hit.hit.t);
-            float dis_new = (new_pos - pos).norm();
-            Eigen::Vector3f normal_new = visibility_hit.shape->normal(visibility_hit.hit);
-            light_pdf = dis_new * dis_new /(fabs(wi.m_t.dot(normal_new))) * visibility_hit.shape->pdf();
-            auto f = intersect.shape->getMaterial()->f(-wi.m_t, -ray.m_t, normal, std::make_shared<igl::Hit>(hit));
-            float pdf = intersect.shape->getMaterial()->pdf(-wi.m_t, -ray.m_t, normal,  std::make_shared<igl::Hit>(hit));
-            if (wi.m_t.dot(normal) < 0.0f && pdf > peps && light_pdf > peps && std::isinf(light_pdf)) { 
-                l += light_spectrum.cwiseProduct(f) / light_pdf * fabs(wi.m_t.dot(normal)) * powerHeuristic(light_pdf, 1, pdf, 1);
-            }
-            if (isnan(l, "light_calc_nan"))
-            {
-                std::cout << light_pdf << " " << pdf << " " << f[0] <<"," <<f[1] <<"," << f[2] << " " << light_spectrum[0] << "," << light_spectrum[1] << ", " << light_spectrum[2] << std::endl;
-                throw "error";
+        bool is_specular = intersect.shape->getMaterial()->getFlag() & BXDF_SPECULAR;
+        if (!is_specular) {
+            auto visibility_hit = scene.intersect(test_ray);
+            if (visibility_hit.light == light && light_spectrum.norm() > peps && light_pdf > peps) {
+                auto new_pos = test_ray.at(visibility_hit.hit.t);
+                float dis_new = (new_pos - pos).norm();
+                Eigen::Vector3f normal_new = visibility_hit.shape->normal(visibility_hit.hit);
+                light_pdf = dis_new * dis_new /(fabs(wi.m_t.dot(normal_new))) * visibility_hit.shape->pdf();
+                auto f = intersect.shape->getMaterial()->f(-wi.m_t, -ray.m_t, normal, std::make_shared<igl::Hit>(hit));
+                float pdf = intersect.shape->getMaterial()->pdf(-wi.m_t, -ray.m_t, normal,  std::make_shared<igl::Hit>(hit));
+                if (wi.m_t.dot(normal) < 0.0f && pdf > peps && light_pdf > peps && !std::isinf(light_pdf)) { 
+                    l += light_spectrum.cwiseProduct(f) / light_pdf * fabs(wi.m_t.dot(normal)) * powerHeuristic(light_pdf, 1, pdf, 1);
+                }
+                if (isnan(l, "light_calc_nan"))
+                {
+                    std::cout << light_pdf << " " << pdf << " " << f[0] <<"," <<f[1] <<"," << f[2] << " " << light_spectrum[0] << "," << light_spectrum[1] << ", " << light_spectrum[2] << std::endl;
+                    throw "error";
+                }
             }
         }
         
@@ -176,7 +184,7 @@ Eigen::Vector3f Integrator::uniformSampleAllLights(const Scene &scene, const Hit
         f *= fabs(wi_f.m_t.dot(normal));
         Eigen::Vector3f le;
         if (pdf > peps) {
-            wi_f.m_o = pos + wi_f.m_t * epst;
+            wi_f.m_o = pos;
             auto light_test = scene.intersect(wi_f);
             Ray last_ray = wi_f;
             float epst_trans = epst;
@@ -204,8 +212,9 @@ Eigen::Vector3f Integrator::uniformSampleAllLights(const Scene &scene, const Hit
                 light_pdf = light->pdfLi(-wi_f.m_t, light_test.hit, pos);
                 if (light_pdf > peps) {
                     le = light->lightEmitted(light_test.hit, -wi_f.m_t);
-                    if (!(intersect.shape->getMaterial()->getFlag() & BXDF_SPECULAR))
+                    if (!(intersect.shape->getMaterial()->getFlag() & BXDF_SPECULAR)) {
                         weight = powerHeuristic(pdf, 1, light_pdf, 1);
+                    }
                     l += f.cwiseProduct(le) *  weight / pdf;
                 }
             }

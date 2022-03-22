@@ -49,7 +49,7 @@ Eigen::Vector3f Texture::at(float x, float y) const {
 TransmittedInfo Lambert::sample(const Eigen::Vector3f& wo, const Eigen::Vector3f& normal, const std::shared_ptr<igl::Hit>&) const {
     Eigen::Vector3f wi = getCosineWeightHemiSphereSample(normal);
     // float pdf = 0.5f * M_1_PI;
-    return {Ray(Eigen::Vector3f(0.0f, 0.0f, 0.0f), wi), f(wi, wo, normal), pdf(wi, wo, normal)};
+    return {Ray(Eigen::Vector3f(0.0f, 0.0f, 0.0f), wi.normalized()), f(wi, wo, normal), pdf(wi, wo, normal)};
 }
 
 Eigen::Vector3f Lambert::f(const Eigen::Vector3f& wi, const Eigen::Vector3f& wo, const Eigen::Vector3f& normal, const std::shared_ptr<igl::Hit>&) const {
@@ -164,15 +164,18 @@ TransmittedInfo Phong::sample(const Eigen::Vector3f& wo, const Eigen::Vector3f& 
     float total_inv = 1.0 / (ks_intensity + kd_intensity);
     float kd_pdf = kd_intensity * total_inv;
     Eigen::Vector3f wi;
-    if (m_distri(m_rng) <= kd_pdf || ks_intensity < 1e-5)
-    {
-        wi = getCosineWeightHemiSphereSample(normal);
-    }
-    else {
-        Eigen::Vector3f h_normal = normal.dot(wo) * normal;
-        Eigen::Vector3f wr = (h_normal - wo) + h_normal;
-        wi = getSpecularWeight(wr, m_ns);
-    }
+    // do {
+        if (m_distri(m_rng) <= kd_pdf || ks_intensity < 1e-5)
+        {
+            wi = getCosineWeightHemiSphereSample(normal);
+        }
+        else {
+            Eigen::Vector3f h_normal = normal.dot(wo) * normal;
+            Eigen::Vector3f wr = (h_normal - wo) + h_normal;
+            wi = getSpecularWeight(wr, m_ns);
+        }
+        wi = wi.normalized();
+    // } while (wi.dot(normal) < 1e-6);
     return {Ray(Eigen::Vector3f(0.0f, 0.0f, 0.0f), wi), f(wi, wo, normal, hit), pdf(wi, wo, normal, hit)};
 }
 
@@ -221,6 +224,8 @@ std::uniform_real_distribution<float> SpecularRefraction::m_distri(0.0f, 1.0f);
 std::default_random_engine SpecularRefraction::m_rng;
 
 float SpecularRefraction::fresnel(const Eigen::Vector3f& wo, const Eigen::Vector3f& normal, float etat, float etai) const {
+    // todo : remove it after debuggin
+    // return 1.0f;
     if (wo.dot(normal) < 0)
         std::swap(etat, etai);
     float cosi = fabs(wo.dot(normal));
@@ -253,7 +258,6 @@ TransmittedInfo SpecularRefraction::sample(const Eigen::Vector3f& wo, const Eige
         info.spectrum *= 1.0f - fr;
         return info;
     }
-
 }
 
 
