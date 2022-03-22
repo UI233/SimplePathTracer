@@ -17,7 +17,7 @@ public:
         m_q(q) {}
     void loadCamera(const std::string& config_path);
     void render(const Scene& scene);
-    void draw();
+    void draw(std::string file_name);
 private:
     Camera m_cam;
     size_t m_width, m_height;

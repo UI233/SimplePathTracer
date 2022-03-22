@@ -3,13 +3,12 @@
 
 #include <random>
 #include <cstdlib>
+#include <iostream>
 
 #include "material.h"
 #include "helper.h"
 
 namespace simple_pt {
-std::uniform_real_distribution<float> Phong::m_distri(0.0f, 1.0f);
-std::default_random_engine Phong::m_rng;
 
 Texture::Texture(const std::string& filename) {
     data = stbi_load(filename.c_str(), &m_width, &m_height, &m_channels, 3);
@@ -22,6 +21,10 @@ Texture::~Texture() {
 Eigen::Vector3f Texture::get(int x, int y) const {
     x %= m_width;
     y %= m_height;
+    if (x < 0)
+        x += m_width;
+    if (y < 0)
+        y += m_height;
     constexpr float factor = 1.0f / 255.0f;
     return Eigen::Vector3f(
         static_cast<float>(data[3 * (y * m_width + x)]) * factor,
@@ -110,6 +113,9 @@ float Lambert::pdf(const Eigen::Vector3f& wi, const Eigen::Vector3f& wo, const E
 //     return {Ray(Eigen::Vector3f(0.0f, 0.0f, 0.0f), -wi), spectrum, possibility};
 // }
 
+
+std::uniform_real_distribution<float> Phong::m_distri(0.0f, 1.0f);
+std::default_random_engine Phong::m_rng;
 
 Phong::Phong(const tinyobj::material_t& material, const tinyobj::shape_t& shape, const tinyobj::attrib_t& attrib, const std::string& material_path):
     m_attrib(attrib),
@@ -209,7 +215,75 @@ float Phong::pdf(const Eigen::Vector3f& wi, const Eigen::Vector3f& wo, const Eig
         // }
     }
     return fabs(wi.dot(normal)) * M_1_PI ;
-    // return 0.5f * M_1_PI;
 } 
+
+std::uniform_real_distribution<float> SpecularRefraction::m_distri(0.0f, 1.0f);
+std::default_random_engine SpecularRefraction::m_rng;
+
+float SpecularRefraction::fresnel(const Eigen::Vector3f& wo, const Eigen::Vector3f& normal, float etat, float etai) const {
+    if (wo.dot(normal) < 0)
+        std::swap(etat, etai);
+    float cosi = fabs(wo.dot(normal));
+    float sini = std::sqrt(std::max(0.0f, 1.0f - cosi * cosi));
+    float sint = sini * etai / etat; 
+    if (sint > 1.0f)
+        return 1.0f;
+    float cost = std::sqrt(std::max(0.0f, 1.0f - sint * sint));
+
+    float rpar1 = ((etat * cosi) - (etai * cost)) / ((etat * cosi) + (etai * cost));
+    float rpar2 = ((etai * cosi) - (etat * cost)) / ((etai * cosi) + (etat * cost));
+    // float r0 = (etai - etat) * (etai - etat) / ((etai + etat) * (etai + etat));
+    // return r0 + (1.0f - r0) * pow(1.0f - std::max(1.0f, fabs(wo.dot(normal))), 5.0f);
+    return 0.5f * (rpar1 * rpar1 + rpar2 * rpar2);
+}
+
+TransmittedInfo SpecularRefraction::sample(const Eigen::Vector3f& wo, const Eigen::Vector3f& normal, const std::shared_ptr<igl::Hit>& hit) const {
+    float fr = fresnel(wo, normal, 1.0f, m_ni);
+    float q = m_distri(m_rng);
+    // std::cout << "fr:" << fr <<std::endl;
+    if (q < fr) {
+        auto info = sampleReflection(wo, normal);
+        info.possibility *= fr;
+        info.spectrum *= fr;
+        return info;
+    }
+    else {
+        auto info = sampleRefraction(wo, normal);
+        info.possibility *= 1.0f - fr;
+        info.spectrum *= 1.0f - fr;
+        return info;
+    }
+
+}
+
+
+TransmittedInfo SpecularRefraction::sampleRefraction(const Eigen::Vector3f& wo, const Eigen::Vector3f& normal) const {
+    float etao = 1.0f, etai = m_ni;
+    //determine the direction of ray
+    if (wo.dot(normal) < 0)
+        std::swap(etao, etai);
+    float cos_wo = wo.dot(normal), sin_wo =sqrtf(std::max(0.0f, 1.0f - cos_wo * cos_wo));
+    float sin_wi = sin_wo * etao / etai, cos_wi = sqrtf(std::max(0.0f, 1.0f - sin_wi * sin_wi));
+    Eigen::Vector3f wi;
+    if (sin_wi >= 1.0f) {
+        // total reflection
+        Eigen::Vector3f hi = wo - normal * wo.dot(normal);
+        wi = -hi + wo.dot(normal) * normal;
+    }
+    else {
+        Eigen::Vector3f hi = wo - normal * wo.dot(normal);
+        hi = -hi.normalized();
+        Eigen::Vector3f normal_i = wo.dot(normal) < 0 ? normal : -normal;
+        wi = cos_wi * normal_i + sin_wi * hi;
+    }
+    float intensity = (etao * etao) / (etai * etai);
+    return {Ray(Eigen::Vector3f(0.0f, 0.0f, 0.0f), wi.normalized()), Eigen::Vector3f(1.0f, 1.0f, 1.0f) / fabs(wi.dot(normal)) * intensity, 1.0f};
+}
+
+TransmittedInfo SpecularRefraction::sampleReflection(const Eigen::Vector3f& wo, const Eigen::Vector3f& normal) const {
+    Eigen::Vector3f h_normal = normal.dot(wo) * normal;
+    Eigen::Vector3f wi = (h_normal - wo) + h_normal;
+    return {Ray(Eigen::Vector3f(0.0f, 0.0f, 0.0f), wi.normalized()), Eigen::Vector3f(1.0f, 1.0f, 1.0f) / fabs(wi.dot(normal)), 1.0f};
+}
 }
 #undef STB_IMAGE_IMPLEMENTATION
