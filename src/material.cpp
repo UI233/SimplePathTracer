@@ -231,7 +231,7 @@ float SpecularRefraction::fresnel(const Eigen::Vector3f& wo, const Eigen::Vector
     float cosi = fabs(wo.dot(normal));
     float sini = std::sqrt(std::max(0.0f, 1.0f - cosi * cosi));
     float sint = sini * etai / etat; 
-    if (sint > 1.0f)
+    if (sint >= 1.0f)
         return 1.0f;
     float cost = std::sqrt(std::max(0.0f, 1.0f - sint * sint));
 
@@ -280,7 +280,7 @@ TransmittedInfo SpecularRefraction::sampleRefraction(const Eigen::Vector3f& wo, 
         Eigen::Vector3f normal_i = wo.dot(normal) < 0 ? normal : -normal;
         wi = cos_wi * normal_i + sin_wi * hi;
     }
-    float intensity = (etao * etao) / (etai * etai);
+    float intensity = (etai * etai) / (etao * etao);
     return {Ray(Eigen::Vector3f(0.0f, 0.0f, 0.0f), wi.normalized()), Eigen::Vector3f(1.0f, 1.0f, 1.0f) / fabs(wi.dot(normal)) * intensity, 1.0f};
 }
 

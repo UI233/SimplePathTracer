@@ -50,14 +50,12 @@ void Integrator::render(const Scene &scene) {
         #pragma omp parallel for
         for (int i = 0; i < m_cam.h(); ++i)
             for (int j = 0; j < m_cam.w(); ++j) {
-                // float offset_x = m_distri(m_rng), offset_y = m_distri(m_rng);
-                auto ray = m_cam.generateRay(j, i);
+                float offset_x = m_distri(m_rng), offset_y = m_distri(m_rng);
+                auto ray = m_cam.generateRay(j + offset_y, i + offset_x);
                 {
                     m_frame[i][j] += pathTracing(ray, scene) / m_num_samples;
                 }
             }
-        std::cerr << "Max Pdf: " << max_pdf << std::endl;
-        max_pdf = 0.0f;
     }
 }
 
@@ -70,10 +68,6 @@ void Integrator::draw(std::string file_name) {
     for (int i = 0; i < m_cam.h(); ++i)
         for (int j = 0; j < m_cam.w(); ++j)
             for (int c = 0; c < 3; ++c) {
-                if (std::isnan(m_frame[m_cam.h() - 1 - i][j][c])) {
-                    std::cerr << m_cam.h() - 1 - i << " " << j << std::endl;
-                    throw "nan";
-                }
                 // todo: simply draw out the image
                 float mapped = clamp<float>(tone_mapping_gamma(m_frame[m_cam.h() - 1 - i][j][c]), 0.0f, 1.0f);
                 data[3 * (i * m_cam.w() + j) + c] = clamp<size_t>(static_cast<size_t>(mapped * 255u), 0u, 255u);
@@ -108,15 +102,14 @@ Eigen::Vector3f Integrator::pathTracing(Ray ray, const Scene &scene) const {
                 l += beta.cwiseProduct(intersect.light->lightEmitted(intersect.hit, -ray.m_t));
                 break;
             }
-            isnan(l, "light_emitted_nan");
         }
         else if (intersect.light)
             break;
         auto material_pt = intersect.shape->getMaterial();
         is_specular = material_pt ? (material_pt->getFlag() & BXDF_SPECULAR) : false;
         // sample light
-        if (!is_specular)
-            l += beta.cwiseProduct(uniformSampleAllLights(scene, intersect, ray));
+        // if (!is_specular)
+        l += beta.cwiseProduct(uniformSampleAllLights(scene, intersect, ray));
         // sample the new direction
         Eigen::Vector3f normal = intersect.shape->normal(intersect.hit);
         // for debug
@@ -128,7 +121,6 @@ Eigen::Vector3f Integrator::pathTracing(Ray ray, const Scene &scene) const {
         beta = beta.cwiseProduct(transimitted_info.spectrum * fabs(normal.dot(transimitted_info.ray.m_t)) / transimitted_info.possibility);
         if (isnan(beta, ""))
             break;
-        isnan(l, "beta_fail_nan");
         // randomlly terminate the process
         if (bounce >= m_least_bounces) {
             float q = std::max(m_q, 1.0f - rgb2intensity(beta));
@@ -136,7 +128,6 @@ Eigen::Vector3f Integrator::pathTracing(Ray ray, const Scene &scene) const {
                 break;
             beta /= 1 - q;
         }
-        isnan(beta, "rr_nan");
         ray = Ray(pos, transimitted_info.ray.m_t);
     }
     return l;
@@ -161,20 +152,15 @@ Eigen::Vector3f Integrator::uniformSampleAllLights(const Scene &scene, const Hit
         bool is_specular = intersect.shape->getMaterial()->getFlag() & BXDF_SPECULAR;
         if (!is_specular) {
             auto visibility_hit = scene.intersect(test_ray);
-            if (visibility_hit.light == light && light_spectrum.norm() > peps && light_pdf > peps) {
+            if (visibility_hit.light == light && light_spectrum.norm() > peps && light_pdf != 0.0f) {
                 auto new_pos = test_ray.at(visibility_hit.hit.t);
                 float dis_new = (new_pos - pos).norm();
                 Eigen::Vector3f normal_new = visibility_hit.shape->normal(visibility_hit.hit);
                 light_pdf = dis_new * dis_new /(fabs(wi.m_t.dot(normal_new))) * visibility_hit.shape->pdf();
                 auto f = intersect.shape->getMaterial()->f(-wi.m_t, -ray.m_t, normal, std::make_shared<igl::Hit>(hit));
                 float pdf = intersect.shape->getMaterial()->pdf(-wi.m_t, -ray.m_t, normal,  std::make_shared<igl::Hit>(hit));
-                if (wi.m_t.dot(normal) < 0.0f && pdf > peps && light_pdf > peps && !std::isinf(light_pdf)) { 
+                if (wi.m_t.dot(normal) < 0.0f && pdf != 0.0f && light_pdf != 0.0f && !std::isinf(light_pdf)) { 
                     l += light_spectrum.cwiseProduct(f) / light_pdf * fabs(wi.m_t.dot(normal)) * powerHeuristic(light_pdf, 1, pdf, 1);
-                }
-                if (isnan(l, "light_calc_nan"))
-                {
-                    std::cout << light_pdf << " " << pdf << " " << f[0] <<"," <<f[1] <<"," << f[2] << " " << light_spectrum[0] << "," << light_spectrum[1] << ", " << light_spectrum[2] << std::endl;
-                    throw "error";
                 }
             }
         }
@@ -183,8 +169,8 @@ Eigen::Vector3f Integrator::uniformSampleAllLights(const Scene &scene, const Hit
         auto [wi_f, f, pdf] = intersect.shape->sampleF(intersect.hit, ray);
         f *= fabs(wi_f.m_t.dot(normal));
         Eigen::Vector3f le;
-        if (pdf > peps) {
-            wi_f.m_o = pos;
+        if (pdf != 0.0f) {
+            wi_f.m_o = pos + epst * wi_f.m_t;
             auto light_test = scene.intersect(wi_f);
             Ray last_ray = wi_f;
             float epst_trans = epst;
@@ -207,10 +193,10 @@ Eigen::Vector3f Integrator::uniformSampleAllLights(const Scene &scene, const Hit
             //     }
             // }
             float weight = 1.0f;
-            if (light_test.light == light && pdf > peps) {
+            if (light_test.light == light && pdf != 0.0f) {
                 // hit on current light
                 light_pdf = light->pdfLi(-wi_f.m_t, light_test.hit, pos);
-                if (light_pdf > peps) {
+                if (light_pdf != 0.0f && !std::isinf(light_pdf)) {
                     le = light->lightEmitted(light_test.hit, -wi_f.m_t);
                     if (!(intersect.shape->getMaterial()->getFlag() & BXDF_SPECULAR)) {
                         weight = powerHeuristic(pdf, 1, light_pdf, 1);
@@ -219,11 +205,7 @@ Eigen::Vector3f Integrator::uniformSampleAllLights(const Scene &scene, const Hit
                 }
             }
         }
-        if (isnan(l, "light_calc_nan"))
-        {
-            std::cout << light_pdf << " " << pdf << " " << f[0] <<"," <<f[1] <<"," << f[2] << " " << le[0] << "," << le[1] << ", " << le[2] << std::endl;
-            throw "error";
-        }
+       
     }
     return l / static_cast<float>(m_l_samples);
 }
