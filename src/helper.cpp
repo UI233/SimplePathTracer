@@ -50,6 +50,13 @@ Eigen::Vector3f getSpecularWeight(const Eigen::Vector3f& normal, int n) {
     return x * x_v + y * y_v + z * normal;
 }
 
+/**
+ * Given a string, return a vector of 3 floats
+ * 
+ * @param s the string , whose format is like "a, b, c", to be converted
+ * 
+ * @return A vector of 3 floats.
+ */
 Eigen::Vector3f str2vector3(std::string s) {
     std::regex pattern("[0-9]+(\\.[0-9]+)?");
     std::smatch m;

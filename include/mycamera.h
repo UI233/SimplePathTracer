@@ -5,11 +5,18 @@
 #include "ray.h"
 
 namespace simple_pt{
+/*! @class Camera
+    @brief 
+*/
 class Camera {
 public:
+    /*!
+    */
     Camera(float fovy, const Eigen::Vector3f& eye, const Eigen::Vector3f& lookat, const Eigen::Vector3f& up, size_t width, size_t height, float z_near, float z_far);
 
     Camera() = default;
+    /*! @fn
+    */
     Ray generateRay(float x, float y) const;
     inline size_t w() const { return width; }
     inline size_t h() const { return height; }

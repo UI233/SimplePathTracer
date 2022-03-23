@@ -3,10 +3,6 @@
 #include <iostream>
 
 namespace simple_pt{
-// Eigen::Vector3f MeshLight::sampleLight() const {
-//     // todo: complete sampling method
-//     return Eigen::Vector3f(0.0f, 0.0f, 0.0f);
-// }
 
 Eigen::Vector3f MeshLight::lightEmitted(const igl::Hit& hit_on_light, const Eigen::Vector3f& dir) const {
     if (m_mesh->normal(hit_on_light).dot(dir) < 0.0f)
@@ -30,10 +26,10 @@ float MeshLight::pdfLi(const Eigen::Vector3f& wi, const igl::Hit& hit_on_light, 
     auto normal = m_mesh->normal(hit_on_light);
     auto vertex = m_mesh->pos(hit_on_light);
     float dis = (pos - vertex).norm();
-    // todo: validate it
-    if (fabs(wi.dot(normal)) == 0.0f) {
+    // avoid a bad sample
+    if (fabs(wi.dot(normal)) == 0.0f)
         return 0.0f;
-    }
+
     float pdf_solid = dis * dis / fabs(wi.dot(normal)) * m_mesh->pdf();
     if (std::isinf(pdf_solid)) {
         std::cout << dis  << " " << wi[0] << "," << wi[1] << ", " << wi[2] << " " << normal[0] << "," << normal[1] << "," <<normal[2] << std::endl; 

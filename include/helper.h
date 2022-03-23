@@ -1,3 +1,8 @@
+/*! @file helper.h
+    @brief declaration of functions used frequently across the project
+
+    these functions mainly handle sampling strategies and data format convertion eg. indices to triangle type and string to vector
+*/
 #pragma once
 
 #include <Eigen/Core>

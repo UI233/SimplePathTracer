@@ -31,6 +31,11 @@ Mesh::Mesh(size_t group_id, std::shared_ptr<Material> material, const tinyobj::a
         m_area_accum[i] += m_area_accum[i - 1];
 }
 
+/**
+ * @brief Uniformly sample a triangle in the mesh
+ * 
+ * @return The sample is a tuple of position, normal and probility of the sample.
+ */
 SampleInfo Mesh::uniformSampling() const {
     float accum_area = distri(rng) * m_area;
     // todo: check this

@@ -21,13 +21,18 @@ struct SampleInfo {
 
 class Shape {
 public:
+    /**
+     * Uniformly sample a point in the given shape
+     * 
+     * @return The sample is a tuple of position, normal and probility of sampling.
+     */
     virtual SampleInfo uniformSampling() const = 0;
     virtual TransmittedInfo sampleF(const igl::Hit& hit, const Ray& ray) const = 0;
     virtual Eigen::Vector3f normal(const igl::Hit& hit) const = 0;
     virtual Eigen::Vector3f pos(const igl::Hit& hit) const = 0;
     virtual std::shared_ptr<Material> getMaterial() const = 0;
     virtual float pdf() const = 0;
-    virtual ~Shape() {}
+    virtual ~Shape() = default;
 };
 
 class Mesh: public Shape {
@@ -41,9 +46,6 @@ public:
     inline size_t getId() const {return m_group_id;}
     inline std::shared_ptr<Material> getMaterial() const override {return m_material;};
     float pdf() const override {return 1.0f / m_area;}
-private:
-    // todo: add texture
-    // Eigen::Vector3f getTexture(const igl::Hit& hit) const;
 private:
     size_t m_group_id;
     //todo: add some useful references to mesh data

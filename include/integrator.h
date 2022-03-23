@@ -7,6 +7,12 @@
 
 namespace simple_pt
 {
+/*! @class Integrator
+    @brief The class manager integration of path tracing
+
+    This class will load the camera configuration and generate rays from camera during rendering.
+    Integration of rendering function using Monte Carlo estimator will be done along the path and the result will be stored and output in image/
+*/
 class Integrator {
 public:
     Integrator(size_t num_samples = 120, size_t l_samples = 10, size_t max_bounces = 12, size_t least_bounces = 4, float q = 0.05f):

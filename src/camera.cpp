@@ -30,7 +30,15 @@ Camera::Camera(float fovy, const Eigen::Vector3f& eye, const Eigen::Vector3f& lo
         this->pers = view * inv;
     }
 
-
+/**
+ * Given a pixel coordinate (x, y), generate a ray that starts at the camera origin and goes through
+ * the pixel
+ * 
+ * @param x The x coordinate of the pixel in the image.
+ * @param y the y coordinate of the pixel in the image
+ * 
+ * @return A ray
+ */
 Ray Camera::generateRay(float x, float y) const {
     // todo: test this function
     float x_i = x / (float) width, y_i = y / (float) height;

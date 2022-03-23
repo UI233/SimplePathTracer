@@ -10,6 +10,11 @@
 using namespace tinyxml2;
 
 namespace simple_pt{
+/**
+ * @brief Load the light information from the XML file
+ * 
+ * @param doc the XML document
+ */
 void Scene::loadLight(const XMLDocument& doc) {
     std::map<std::string, int> name_index;
     for (int i = 0; i < m_materials.size(); ++i) 
@@ -30,6 +35,12 @@ void Scene::loadLight(const XMLDocument& doc) {
     }
 }
 
+/**
+ * @brief Construct the aabb respenting the scene and a list of material-contained objects from scene description
+ * 
+ * @param scene_path the path to the scene file.
+ * @param material_path the path to the material file.
+ */
 void Scene::loadScene(const std::string& scene_path, const std::string& material_path) {
     tinyobj::ObjReader reader;   
     tinyobj::ObjReaderConfig config;
@@ -84,7 +95,6 @@ void Scene::loadScene(const std::string& scene_path, const std::string& material
                 )
             );
     }
-    // m_objects.push_back(std::make_shared)
 }
 
 void Scene::load(const std::string& scene_model_path, const std::string& scene_config_path, const std::string& material_path) {

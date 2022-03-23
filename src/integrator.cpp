@@ -18,6 +18,11 @@ namespace simple_pt
 std::default_random_engine Integrator::m_rng;
 std::uniform_real_distribution<float> Integrator::m_distri(0.0f, 1.0f);
 
+/** @fn loadCamera
+ *  @brief Load a camera from the xml file to which a path directs
+ *
+ *  @param config_file the string which describes the path to the configuration of a camera
+*/
 void Integrator::loadCamera(const std::string& config_file) {
     tinyxml2::XMLDocument doc; 
     doc.LoadFile(config_file.c_str());
@@ -41,9 +46,12 @@ void Integrator::loadCamera(const std::string& config_file) {
         throw "Invalid Camera Description";
 }
 
-//for debugging remove it
-float max_dis = 0.0f;
-float max_pdf = 0.0f;
+/** @fn render
+ *  @brief Given a scene, the function will render it and store information into class member
+
+ *  @param scene the scene to be rendered
+ *  @see Scene
+*/
 void Integrator::render(const Scene &scene) {
     for (int s = 0; s < m_num_samples; ++s) {
         std::cout << "SSP now: " << s + 1 << std::endl;
@@ -59,9 +67,14 @@ void Integrator::render(const Scene &scene) {
     }
 }
 
+/*! @fn draw
+ *  @brief draw the rendered image stored in this class and output it to a image
+
+ *  @param file_name the path of the output image
+*/
 void Integrator::draw(std::string file_name) {
+    // crytek tone mapping strategy to map hdr spectrum to sdr space
     auto tone_mapping_gamma = [](float c) {
-        //todo: fix this
         return pow(1.0f - exp(-1.0f * c), 1.0 / 2.2);
     };
     std::vector<unsigned char> data(m_cam.w() * m_cam.h() * 3);
@@ -76,15 +89,14 @@ void Integrator::draw(std::string file_name) {
 }
 
 
+/*! @fn pathTracing
+  * @brief Estimate the integration of the given ray
+  *
+  * @param ray the starting ray to be traced
+  * @param scene a class descriping the scene to be rendered
+  * @return the spectrum carried on the ray
+*/
 Eigen::Vector3f Integrator::pathTracing(Ray ray, const Scene &scene) const {
-    // test for ray
-    // auto pos = scene.intersect(ray).pos;
-    // if (pos.norm() == 0.0f)
-    //     return pos;
-    // float dis = (pos - m_cam.o()).norm();
-    // max_dis = std::max(max_dis, dis);
-    // return Eigen::Vector3f(dis, dis, dis);
-    // 
     Eigen::Vector3f l(0.0f, 0.0f, 0.0f);
     Eigen::Vector3f beta(1.0f, 1.0f, 1.0f);
     size_t bounce = 0;
@@ -114,8 +126,6 @@ Eigen::Vector3f Integrator::pathTracing(Ray ray, const Scene &scene) const {
         Eigen::Vector3f normal = intersect.shape->normal(intersect.hit);
         // for debug
         auto transimitted_info = intersect.shape->sampleF(intersect.hit, ray);
-        // if (transimitted_info.possibility < 1e-5 || isnan(transimitted_info.spectrum, "spectrum nan"))
-        //     break;
         if (transimitted_info.possibility == 0.0f)
             break;
         beta = beta.cwiseProduct(transimitted_info.spectrum * fabs(normal.dot(transimitted_info.ray.m_t)) / transimitted_info.possibility);
@@ -134,6 +144,14 @@ Eigen::Vector3f Integrator::pathTracing(Ray ray, const Scene &scene) const {
 }
 
 
+/** @fn uniformSampleAllLights
+ *  @brief Light source sampling routine of path tracing 
+ *
+ *  @param scene a class descriping the scene to be rendered
+ *  @param intersect the intersection information during tracing
+ *  @param ray the ray intersects the surface during tracing
+ *  @return spectrum sampled from all light sources
+*/
 Eigen::Vector3f Integrator::uniformSampleAllLights(const Scene &scene, const HitInfo& intersect, const Ray& ray) const {
     constexpr float peps = 1e-5;
     constexpr float epst = 1e-4;
@@ -143,9 +161,6 @@ Eigen::Vector3f Integrator::uniformSampleAllLights(const Scene &scene, const Hit
     Eigen::Vector3f normal = intersect.shape->normal(hit);
     for (size_t s = 0; s < m_l_samples; ++s)
     for (auto& light : scene.getAllLights()) {
-        // todo check sampling pos
-        // sample on light source
-        // todo: debug this
         auto [wi, light_spectrum, light_pdf] = light->sampleLight(hit, pos); 
         // wi.m_o += epst * wi.m_t;
         Ray test_ray(pos + epst * -wi.m_t, -wi.m_t);
@@ -174,24 +189,6 @@ Eigen::Vector3f Integrator::uniformSampleAllLights(const Scene &scene, const Hit
             auto light_test = scene.intersect(wi_f);
             Ray last_ray = wi_f;
             float epst_trans = epst;
-            int count = 0;
-            // consider the ray hit refraction material
-            // while (light_test.shape && light_test.shape->getMaterial() && (light_test.shape->getMaterial()->getFlag() & BXDF_REFRACTION)) {
-            //     auto [ray_new, spectrum, f_pdf] = light_test.shape->sampleF(light_test.hit, last_ray);
-            //     if (f_pdf < peps)
-            //         break;
-            //     // pdf *= f_pdf;
-            //     // f = f.cwiseProduct(spectrum);
-            //     Eigen::Vector3f test_pos = last_ray.at(light_test.hit.t);
-            //     ray_new.m_o = test_pos + ray_new.m_t * epst_trans;
-            //     light_test = scene.intersect(ray_new);
-            //     last_ray = ray_new;
-            //     ++count;
-            //     if (count > 10) {
-            //         epst_trans *= 10.0f;
-            //         count = 0;
-            //     }
-            // }
             float weight = 1.0f;
             if (light_test.light == light && pdf != 0.0f) {
                 // hit on current light
